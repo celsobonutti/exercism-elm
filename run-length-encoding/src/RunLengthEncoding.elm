@@ -54,13 +54,13 @@ stringifyTuples tuple string =
                 String.fromInt count ++ String.fromChar character ++ string
 
 
-validChar : Parser String
-validChar =
+charParser : Parser String
+charParser =
     getChompedString <| chompIf (\char -> Char.isAlpha char || char == ' ')
 
 
-quantity : Parser (Maybe Int)
-quantity =
+quantityParser : Parser (Maybe Int)
+quantityParser =
     oneOf
         [ succeed Just
             |= int
@@ -68,11 +68,11 @@ quantity =
         ]
 
 
-charGroup : Parser CharGroup
-charGroup =
+charGroupParser : Parser CharGroup
+charGroupParser =
     succeed CharGroup
-        |= quantity
-        |= validChar
+        |= quantityParser
+        |= charParser
 
 
 decodeStr : Parser String
@@ -85,7 +85,7 @@ decodeHelp : List CharGroup -> Parser (Step (List CharGroup) (List CharGroup))
 decodeHelp groups =
     oneOf
         [ succeed (\group -> Loop (group :: groups))
-            |= charGroup
+            |= charGroupParser
         , succeed ()
             |> map (\_ -> Done (List.reverse groups))
         ]
@@ -97,10 +97,5 @@ concatGroups groups =
 
 
 mergeGroup : CharGroup -> String -> String
-mergeGroup group currentStr =
-    case group.quantity of
-        Nothing ->
-            currentStr ++ group.character
-
-        Just value ->
-            currentStr ++ String.repeat value group.character
+mergeGroup { quantity, character } currentStr =
+    currentStr ++ String.repeat (Maybe.withDefault 1 quantity) character
