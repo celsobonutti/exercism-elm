@@ -1,5 +1,7 @@
 module RunLengthEncoding exposing (decode, encode)
 
+import Parser exposing (..)
+
 
 encode : String -> String
 encode string =
@@ -11,9 +13,19 @@ encode string =
 
 decode : String -> String
 decode string =
-    string
-    |> String.toList
-    |> decodeChar "" Nothing
+    case Parser.run decodeStr string of
+        Err deadEnds ->
+            "Error: " ++ deadEndsToString deadEnds
+
+        Ok val ->
+            val
+
+
+type alias CharGroup =
+    { quantity : Maybe Int
+    , character : String
+    }
+
 
 encodeChar : Char -> List ( Int, Char ) -> List ( Int, Char )
 encodeChar currentChar charList =
@@ -42,39 +54,53 @@ stringifyTuples tuple string =
                 String.fromInt count ++ String.fromChar character ++ string
 
 
-decodeChar : String -> Maybe String -> List Char -> String
-decodeChar currentString lastNumber characters =
-    let
-        parsedLastNumber =
-            case lastNumber of
-                Nothing ->
-                    0
+validChar : Parser String
+validChar =
+    getChompedString <| chompIf (\char -> Char.isAlpha char || char == ' ')
 
-                Just value ->
-                    Maybe.withDefault 0 (String.toInt value)
 
-        ( nextString, nextNumber ) =
-            case characters of
-                [] ->
-                    ( currentString, Nothing )
+quantity : Parser (Maybe Int)
+quantity =
+    oneOf
+        [ succeed Just
+            |= int
+        , succeed Nothing
+        ]
 
-                head :: _ ->
-                    case ( lastNumber, Char.isDigit head ) of
-                        ( Nothing, True ) ->
-                            ( currentString, Just (String.fromChar head) )
 
-                        ( Nothing, False ) ->
-                            ( currentString ++ String.fromChar head , Nothing )
+charGroup : Parser CharGroup
+charGroup =
+    succeed CharGroup
+        |= quantity
+        |= validChar
 
-                        ( Just value, True ) ->
-                            ( currentString, Just (value ++ String.fromChar head) )
 
-                        ( Just _, False ) ->
-                            ( currentString ++ String.repeat parsedLastNumber (String.fromChar head) , Nothing )
-    in
-    case characters of
-        [] ->
-            nextString
+decodeStr : Parser String
+decodeStr =
+    loop [] decodeHelp
+        |> Parser.map concatGroups
 
-        _ :: tail ->
-            decodeChar nextString nextNumber tail
+
+decodeHelp : List CharGroup -> Parser (Step (List CharGroup) (List CharGroup))
+decodeHelp groups =
+    oneOf
+        [ succeed (\group -> Loop (group :: groups))
+            |= charGroup
+        , succeed ()
+            |> map (\_ -> Done (List.reverse groups))
+        ]
+
+
+concatGroups : List CharGroup -> String
+concatGroups groups =
+    List.foldl mergeGroup "" groups
+
+
+mergeGroup : CharGroup -> String -> String
+mergeGroup group currentStr =
+    case group.quantity of
+        Nothing ->
+            currentStr ++ group.character
+
+        Just value ->
+            currentStr ++ String.repeat value group.character
