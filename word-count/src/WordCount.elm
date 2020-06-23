@@ -24,14 +24,14 @@ addWord word wordDict =
         lowercaseWord =
             String.toLower word
     in
-    wordDict
-        |> (case Dict.get lowercaseWord wordDict of
-                Nothing ->
-                    Dict.insert lowercaseWord 1
+    Dict.insert lowercaseWord
+        (getWordCount lowercaseWord wordDict + 1)
+        wordDict
 
-                Just value ->
-                    Dict.insert lowercaseWord (value + 1)
-           )
+
+getWordCount : String -> Dict String Int -> Int
+getWordCount word wordDict =
+    Maybe.withDefault 0 <| Dict.get word wordDict
 
 
 removeApostrophes : String -> String
